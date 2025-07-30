@@ -1,10 +1,9 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GitHub Latest Release Fetcher</title>
+    <title>GitHub Release Fetcher</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body {
@@ -16,7 +15,6 @@
             min-height: 100vh;
             padding: 1rem;
         }
-
         .container {
             background-color: #ffffff;
             padding: 2.5rem;
@@ -26,19 +24,16 @@
             width: 100%;
             text-align: center;
         }
-
         .input-group {
             margin-bottom: 1.5rem;
             text-align: left;
         }
-
         .input-group label {
             display: block;
             margin-bottom: 0.5rem;
             font-weight: 600;
             color: #333;
         }
-
         .input-group input[type="text"] {
             width: 100%;
             padding: 0.75rem;
@@ -47,13 +42,11 @@
             font-size: 1rem;
             transition: border-color 0.2s;
         }
-
         .input-group input[type="text"]:focus {
             outline: none;
             border-color: #3b82f6;
             box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25);
         }
-
         .button {
             background-color: #3b82f6;
             color: #ffffff;
@@ -66,16 +59,13 @@
             transition: background-color 0.2s, transform 0.1s;
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
         }
-
         .button:hover {
             background-color: #2563eb;
             transform: translateY(-1px);
         }
-
         .button:active {
             transform: translateY(0);
         }
-
         .result-box {
             margin-top: 2rem;
             padding: 1.5rem;
@@ -85,30 +75,25 @@
             text-align: left;
             word-wrap: break-word;
         }
-
         .result-box p {
             margin-bottom: 0.5rem;
             color: #2d3748;
         }
-
         .result-box a {
             color: #1a73e8;
             text-decoration: underline;
         }
-
-        .loading-indicator {
+        .message-indicator {
             margin-top: 1.5rem;
             font-weight: 500;
             color: #4a5568;
         }
-
         .error-message {
             margin-top: 1.5rem;
             color: #e53e3e;
             font-weight: 500;
         }
-
-        .redirect-message {
+        .action-message {
             font-size: 1.2rem;
             font-weight: 600;
             color: #4a5568;
@@ -116,12 +101,10 @@
         }
     </style>
 </head>
-
 <body>
     <div class="container" id="mainContainer">
-        <h1 class="text-3xl font-bold text-gray-800 mb-6">GitHub Latest Release Fetcher</h1>
-        <p class="text-gray-600 mb-8">Enter a GitHub repository (e.g., 'owner/repo') to get the latest release asset
-            download link.</p>
+        <h1 class="text-3xl font-bold text-gray-800 mb-6">GitHub Release Fetcher</h1>
+        <p class="text-gray-600 mb-8">Enter a GitHub repository (e.g., `owner/repo`) to get the latest release asset download link, or use URL parameters for direct actions.</p>
 
         <div class="input-group">
             <label for="repoInput" class="block text-gray-700">GitHub Repository:</label>
@@ -130,17 +113,17 @@
 
         <button id="fetchButton" class="button">Fetch Latest Release</button>
 
-        <div id="loading" class="loading-indicator hidden">Loading latest release...</div>
+        <div id="loading" class="message-indicator hidden">Loading release information...</div>
         <div id="errorMessage" class="error-message hidden"></div>
 
         <div id="result" class="result-box hidden">
-            <p class="font-semibold text-lg mb-2">Latest Release Details:</p>
+            <p class="font-semibold text-lg mb-2">Release Details:</p>
             <p><strong>Tag Name:</strong> <span id="tagName"></span></p>
             <p><strong>Release Name:</strong> <span id="releaseName"></span></p>
             <p><strong>Published At:</strong> <span id="publishedAt"></span></p>
             <p><strong>Download Link:</strong> <a id="downloadLink" href="#" target="_blank" class="break-all"></a></p>
         </div>
-        <div id="redirectingMessage" class="redirect-message hidden">Redirecting to latest release...</div>
+        <div id="actionMessage" class="action-message hidden"></div>
     </div>
 
     <script>
@@ -155,12 +138,67 @@
             const publishedAtSpan = document.getElementById('publishedAt');
             const downloadLinkAnchor = document.getElementById('downloadLink');
             const mainContainer = document.getElementById('mainContainer');
-            const redirectingMessage = document.getElementById('redirectingMessage');
+            const actionMessage = document.getElementById('actionMessage');
+
+            function showMessage(element, message, isError = false) {
+                element.textContent = message;
+                element.classList.remove('hidden');
+                if (isError) {
+                    element.classList.add('error-message');
+                    element.classList.remove('message-indicator');
+                } else {
+                    element.classList.add('message-indicator');
+                    element.classList.remove('error-message');
+                }
+            }
+
+            function hideMessage(element) {
+                element.classList.add('hidden');
+            }
+
+            async function getSpecificReleaseAndDownload(repoPath, releaseTag) {
+                hideMessage(errorMessage);
+                hideMessage(resultDiv);
+                mainContainer.style.display = 'none';
+                showMessage(actionMessage, 'Attempting to download specified release...', false);
+
+                const apiUrl = `https://api.github.com/repos/${repoPath}/releases/tags/${releaseTag}`;
+
+                try {
+                    const response = await fetch(apiUrl);
+
+                    if (!response.ok) {
+                        if (response.status === 404) {
+                            throw new Error(`Release tag "${releaseTag}" not found for repository "${repoPath}".`);
+                        }
+                        throw new Error(`GitHub API error: ${response.statusText}`);
+                    }
+
+                    const data = await response.json();
+
+                    if (!data || !data.assets || data.assets.length === 0) {
+                        throw new Error(`No release assets found for release tag "${releaseTag}".`);
+                    }
+
+                    const assetUrl = data.assets[0].browser_download_url;
+                    window.location.href = assetUrl;
+
+                    showMessage(actionMessage, `Download for "${releaseTag}" initiated. If it doesn't start, check your browser settings.`, false);
+
+                } catch (error) {
+                    console.error('Error fetching specific release for download:', error);
+                    showMessage(actionMessage, `Failed to download release: ${error.message}. Please try manually.`, true);
+                    mainContainer.style.display = 'block';
+                } finally {
+                    hideMessage(loadingIndicator);
+                }
+            }
 
             async function getLatestReleaseAndRedirect(repoPath) {
-                loadingIndicator.classList.remove('hidden');
+                hideMessage(errorMessage);
+                hideMessage(resultDiv);
                 mainContainer.style.display = 'none';
-                redirectingMessage.classList.remove('hidden');
+                showMessage(actionMessage, 'Redirecting to latest release...', false);
 
                 const apiUrl = `https://api.github.com/repos/${repoPath}/releases/latest`;
 
@@ -169,9 +207,8 @@
 
                     if (!response.ok) {
                         if (response.status === 404) {
-                            throw new Error('Repository or latest release not found. Please check the repository path.');
+                            throw new Error(`Repository or latest release not found for "${repoPath}".`);
                         }
-
                         throw new Error(`GitHub API error: ${response.statusText}`);
                     }
 
@@ -186,25 +223,24 @@
 
                 } catch (error) {
                     console.error('Error fetching latest release for redirection:', error);
-
-                    redirectingMessage.classList.add('hidden');
+                    showMessage(actionMessage, `Failed to redirect: ${error.message}. Please try manually.`, true);
                     mainContainer.style.display = 'block';
-                    displayError(`Failed to redirect: ${error.message}. Please try manually.`);
                 } finally {
-                    loadingIndicator.classList.add('hidden');
+                    hideMessage(loadingIndicator);
                 }
             }
 
             async function fetchLatestReleaseManual() {
                 const repoPath = repoInput.value.trim();
                 if (!repoPath) {
-                    displayError('Please enter a GitHub repository (e.g., owner/repo).');
+                    showMessage(errorMessage, 'Please enter a GitHub repository (e.g., owner/repo).', true);
                     return;
                 }
 
-                resultDiv.classList.add('hidden');
-                errorMessage.classList.add('hidden');
-                loadingIndicator.classList.remove('hidden');
+                hideMessage(resultDiv);
+                hideMessage(errorMessage);
+                hideMessage(actionMessage);
+                showMessage(loadingIndicator, 'Loading latest release...', false);
 
                 const apiUrl = `https://api.github.com/repos/${repoPath}/releases/latest`;
 
@@ -221,7 +257,7 @@
                     const data = await response.json();
 
                     if (!data || !data.assets || data.assets.length === 0) {
-                        displayError('No release assets found for this repository\'s latest release.');
+                        showMessage(errorMessage, 'No release assets found for this repository\'s latest release.', true);
                         return;
                     }
 
@@ -237,22 +273,19 @@
 
                 } catch (error) {
                     console.error('Error fetching latest release:', error);
-                    displayError(`Failed to fetch release: ${error.message}`);
+                    showMessage(errorMessage, `Failed to fetch release: ${error.message}`, true);
                 } finally {
-                    loadingIndicator.classList.add('hidden');
+                    hideMessage(loadingIndicator);
                 }
-            }
-
-            function displayError(message) {
-                errorMessage.textContent = message;
-                errorMessage.classList.remove('hidden');
-                resultDiv.classList.add('hidden');
             }
 
             const urlParams = new URLSearchParams(window.location.search);
             const repoParam = urlParams.get('repo');
+            const releaseParam = urlParams.get('release');
 
-            if (repoParam) {
+            if (repoParam && releaseParam) {
+                getSpecificReleaseAndDownload(repoParam, releaseParam);
+            } else if (repoParam) {
                 getLatestReleaseAndRedirect(repoParam);
             } else {
                 fetchButton.addEventListener('click', fetchLatestReleaseManual);
